@@ -1896,19 +1896,16 @@ function _renderDayDetailModal(dateStr, data) {
   const takenInfo = document.getElementById('dayDetailTakenInfo');
   const takenBtn = document.getElementById('dayDetailTakenBtn');
 
-  if(isTaken) {
+  // Explicit check: taken must be truthy (not false/undefined/null)
+  if(isTaken === true) {
     takenInfo.style.display = 'block';
     takenInfo.textContent = takenTime ? `✅ Assunto alle ${takenTime}` : '✅ Segnato come preso';
     takenBtn.textContent = '○ Rimuovi assunzione';
-    takenBtn.style.background = 'transparent';
-    takenBtn.style.border = '1px solid var(--border)';
-    takenBtn.style.color = 'var(--muted)';
+    takenBtn.style.cssText = 'width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:8px;font-size:14px;cursor:pointer';
   } else {
     takenInfo.style.display = 'none';
     takenBtn.textContent = '✅ Segna come preso';
-    takenBtn.style.background = 'var(--accent2)';
-    takenBtn.style.border = 'none';
-    takenBtn.style.color = '#0d1117';
+    takenBtn.style.cssText = 'width:100%;background:var(--accent2);border:none;color:#0d1117;padding:10px;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer';
   }
 
   document.getElementById('dayDetailModal').classList.add('active');
@@ -2978,18 +2975,8 @@ if('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
       .then(reg => {
         console.log('[TAO] Service Worker registrato:', reg.scope);
-        // When a new SW is found, tell it to skip waiting
-        // so it is ready for the NEXT time the user opens the app.
-        // No automatic reload — user gets new version on next natural open.
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if(newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              newWorker.postMessage({ type: 'SKIP_WAITING' });
-              console.log('[TAO] Nuova versione pronta per la prossima apertura.');
-            }
-          });
-        });
+        // No automatic updates or reloads.
+        // The SW updates naturally when the user closes and reopens the app.
       })
       .catch(err => console.warn('[TAO] SW registration failed:', err));
   });
