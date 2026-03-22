@@ -10,6 +10,21 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>TAO Monitor</title>
+<!-- Capacitor (only loaded in native app context) -->
+<script>
+  // Capacitor is injected by the native app before page loads
+  // window.Capacitor is available immediately if running in native APK
+  window.isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  
+  // Hide splash screen as early as possible
+  if(window.isCapacitor) {
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        window.Capacitor.Plugins.SplashScreen?.hide({ fadeOutDuration: 500 });
+      } catch(e) {}
+    });
+  }
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
@@ -1636,6 +1651,16 @@ let alarmOscillators=[];
 let alarmInterval=null;
 
 function scheduleAlarm(dateStr, time) {
+  const data = loadData();
+  if(data.taken && data.taken[dateStr]===true) return;
+  if(window.isCapacitor) {
+    scheduleNativeAlarm(dateStr, time);
+    return;
+  }
+  scheduleAlarmTimeout(dateStr, time);
+}
+
+function scheduleAlarmTimeout(dateStr, time) {
   if(activeAlarmTimers[dateStr]) clearTimeout(activeAlarmTimers[dateStr]);
   const [h,m]=time.split(':').map(Number);
   const [dd,mm,yyyy]=dateStr.split('/').map(Number);
@@ -1653,7 +1678,7 @@ function fireAlarm(dateStr, time) {
   startAlarmSound();
   document.getElementById('alarmSub').textContent=`${dateStr} — orario programmato: ${time}`;
   document.getElementById('alarmToast').classList.add('show');
-  if(Notification.permission==='granted') new Notification('TAO Monitor — Assunzione farmaco',{body:`Ora di prendere il Coumadin! (${dateStr} alle ${time})`});
+  if(typeof Notification !== 'undefined' && Notification.permission==='granted') new Notification('TAO Monitor — Assunzione farmaco',{body:`Ora di prendere il Coumadin! (${dateStr} alle ${time})`});
 }
 
 function startAlarmSound() {
@@ -1750,6 +1775,7 @@ function closeAlarm() {
 }
 
 function requestNotifPermission() {
+  if(typeof Notification === 'undefined') return; // Not available in Capacitor
   Notification.requestPermission().then(p=>{ if(p==='granted') document.getElementById('notifBtn').style.display='none'; });
 }
 
@@ -2396,24 +2422,30 @@ async function fbRegisterFCM() {
   if(!_fbMessaging || !_fbVapidKey || !_fbUser) return;
   try {
     const { getToken } = window._firebaseModules;
-    // Register FCM SW explicitly with correct path for GitHub Pages subfolder
-    const swReg = await navigator.serviceWorker.register(
-      '/firebase-messaging-sw.js',
-      { scope: '/' }
-    );
-    // Send Firebase config to the SW
-    const fbConfig = JSON.parse(localStorage.getItem(FB_CONFIG_KEY)||'{}');
-    if(swReg.active) swReg.active.postMessage({ type:'FIREBASE_CONFIG', config:fbConfig });
-    else if(swReg.installing) {
-      swReg.installing.addEventListener('statechange', e => {
-        if(e.target.state === 'activated')
-          swReg.active.postMessage({ type:'FIREBASE_CONFIG', config:fbConfig });
+    // Skip FCM SW in Capacitor - use native notifications instead
+    let token;
+    if(window.Capacitor) {
+      // Native app - get FCM token via Capacitor Push Notifications
+      token = null; // Will be set by native plugin
+    } else {
+      // Web PWA - register FCM service worker
+      const swReg = await navigator.serviceWorker.register(
+        '/firebase-messaging-sw.js',
+        { scope: '/' }
+      );
+      const fbConfig = JSON.parse(localStorage.getItem(FB_CONFIG_KEY)||'{}');
+      if(swReg.active) swReg.active.postMessage({ type:'FIREBASE_CONFIG', config:fbConfig });
+      else if(swReg.installing) {
+        swReg.installing.addEventListener('statechange', e => {
+          if(e.target.state === 'activated')
+            swReg.active.postMessage({ type:'FIREBASE_CONFIG', config:fbConfig });
+        });
+      }
+      token = await getToken(_fbMessaging, {
+        vapidKey: _fbVapidKey,
+        serviceWorkerRegistration: swReg
       });
     }
-    const token = await getToken(_fbMessaging, {
-      vapidKey: _fbVapidKey,
-      serviceWorkerRegistration: swReg
-    });
     if(token) {
       // Save token to Firestore so alarm-checker.js can use it
       const { doc, setDoc } = window._firebaseModules;
@@ -2434,6 +2466,10 @@ async function fbRegisterFCM() {
 }
 
 async function fbRequestNotifications() {
+  if(typeof Notification === 'undefined') {
+    updateFbNotifStatus('⚠️ Notifiche browser non disponibili in questa versione.', 'warn');
+    return;
+  }
   const perm = await Notification.requestPermission();
   if(perm !== 'granted') {
     updateFbNotifStatus('❌ Permesso notifiche negato. Abilitalo nelle impostazioni del browser.', 'err');
@@ -2958,10 +2994,90 @@ async function generatePDFReport() {
 // ===================================================
 // INIT
 // ===================================================
+// ---- CAPACITOR NATIVE ALARMS ----
+async function scheduleNativeAlarm(dateStr, time) {
+  if(!window.isCapacitor) return;
+  try {
+    const { AlarmPlugin } = window.Capacitor.Plugins;
+    if(!AlarmPlugin) return;
+    // Generate numeric alarm ID from date
+    const [dd,mm,yyyy] = dateStr.split('/');
+    const alarmId = parseInt(`${yyyy}${mm}${dd}`);
+    const therapies = getAllTherapies();
+    const t = therapies[currentTherapyIdx];
+    const dose = getDayDoseFromTherapy(t, dateStr);
+    const doseText = doseToText(dose);
+    await AlarmPlugin.scheduleAlarm({
+      date: dateStr,
+      time: time,
+      alarmId: alarmId,
+      dose: doseText
+    });
+    console.log(`[CAP] Alarm scheduled: ${dateStr} ${time}`);
+  } catch(e) {
+    console.warn('[CAP] Native alarm error:', e);
+    // Fallback to setTimeout
+    scheduleAlarmTimeout(dateStr, time);
+  }
+}
+
+async function cancelNativeAlarm(dateStr) {
+  if(!window.isCapacitor) return;
+  try {
+    const { AlarmPlugin } = window.Capacitor.Plugins;
+    if(!AlarmPlugin) return;
+    const [dd,mm,yyyy] = dateStr.split('/');
+    const alarmId = parseInt(`${yyyy}${mm}${dd}`);
+    await AlarmPlugin.cancelAlarm({ alarmId });
+  } catch(e) {
+    console.warn('[CAP] Cancel alarm error:', e);
+  }
+}
+
+function initCapacitor() {
+  if(!window.isCapacitor) return;
+  console.log('[CAP] Running in Capacitor native app');
+
+  // Hide native splash screen immediately
+  try {
+    const { SplashScreen } = window.Capacitor.Plugins;
+    if(SplashScreen) {
+      SplashScreen.hide({ fadeOutDuration: 300 });
+      console.log('[CAP] Splash hidden');
+    }
+  } catch(e) {
+    console.warn('[CAP] SplashScreen error:', e);
+  }
+
+  // Handle alarm action from notification (confirm/snooze)
+  window.Capacitor.Plugins.App?.addListener('appUrlOpen', data => {
+    console.log('[CAP] App opened with:', data);
+  });
+
+  // Check if app was opened from alarm notification
+  const urlParams = new URLSearchParams(window.location.search);
+  const alarmDate = urlParams.get('alarmDate');
+  const alarmAction = urlParams.get('alarmAction');
+  if(alarmDate && alarmAction === 'confirm') {
+    setTimeout(() => {
+      appData = loadData();
+      if(!appData.taken) appData.taken = {};
+      if(!appData.takenTimes) appData.takenTimes = {};
+      if(!appData.takenEditTimes) appData.takenEditTimes = {};
+      appData.taken[alarmDate] = true;
+      appData.takenEditTimes[alarmDate] = Date.now();
+      appData.takenTimes[alarmDate] = new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+      saveData(appData);
+      fbAutoSync();
+      renderTerapiaTab();
+    }, 1500);
+  }
+}
+
 function initAlarms() {
   const data=loadData();
   Object.entries(data.alarms||{}).forEach(([date,time])=>scheduleAlarm(date,time));
-  if(Notification.permission==='default') document.getElementById('notifBtn').style.display='block';
+  if(typeof Notification !== 'undefined' && Notification.permission==='default') document.getElementById('notifBtn').style.display='block';
   const th=data.therapies&&data.therapies.length?data.therapies:(data.therapy?[data.therapy]:[]);
   if(th.length) updatePatientBadge(th[th.length-1].paziente);
   // First launch: ask default time if we have therapies but no defaultAlarmTime
@@ -3005,25 +3121,29 @@ function openStartupTab() {
 lockLandscapeOnMobile();
 initAlarms();
 initSwipe();
-setTimeout(initFirebase, 800);
+initCapacitor();
+
+// Hide splash immediately in Capacitor, after 1.2s in browser
+const splashDelay = window.isCapacitor ? 100 : 1200;
 setTimeout(() => {
   hideSplash();
   openStartupTab();
-}, 1200);
+}, splashDelay);
+
+setTimeout(initFirebase, 800);
 
 </script>
 <script>
-if('serviceWorker' in navigator) {
+// Service Worker disabled in Capacitor APK
+// Alarms handled natively via AlarmPlugin
+if('serviceWorker' in navigator && !window.Capacitor) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js')
-      .then(reg => {
-        console.log('[TAO] Service Worker registrato:', reg.scope);
-        // No automatic updates or reloads.
-        // The SW updates naturally when the user closes and reopens the app.
-      })
-      .catch(err => console.warn('[TAO] SW registration failed:', err));
+      .then(reg => console.log('[TAO] SW registrato:', reg.scope))
+      .catch(err => console.warn('[TAO] SW failed:', err));
   });
 }
 </script>
+
 </body>
 </html>
