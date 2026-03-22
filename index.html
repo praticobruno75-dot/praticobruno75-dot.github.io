@@ -13,7 +13,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Firebase SDKs -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js';
+  window._firebaseModules = { initializeApp, getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, getFirestore, doc, setDoc, getDoc, onSnapshot, getMessaging, getToken, onMessage };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -176,7 +184,65 @@ main{padding:28px 32px;max-width:1200px;margin:0 auto}
 @media(max-width:640px){main{padding:16px}header{padding:14px 16px}nav{padding:12px 16px 0;overflow-x:auto}.tab-btn{white-space:nowrap}.cards-grid{grid-template-columns:repeat(2,1fr)}.cal-grid{gap:3px}.cal-day{min-height:90px;padding:6px 4px}.dose-circle{width:44px;height:44px}.dose-circle-num{font-size:13px}}
 </style>
 </head>
-<body>
+<body class="splash-active">
+
+<!-- SPLASH SCREEN -->
+<div id="splashScreen" style="
+  position:fixed;inset:0;z-index:99999;
+  background:linear-gradient(135deg,#ff4e3a 0%,#ff7b45 40%,#f0883e 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity 0.5s ease, transform 0.5s ease;
+">
+  <div style="text-align:center;animation:splashPulse 0.6s ease-out">
+    <div style="
+      font-family:'DM Serif Display',serif;
+      font-size:clamp(42px,10vw,80px);
+      color:white;
+      letter-spacing:-2px;
+      line-height:1;
+      text-shadow:0 4px 24px rgba(0,0,0,0.3);
+      margin-bottom:12px;
+    ">TAO</div>
+    <div style="
+      font-family:'DM Serif Display',serif;
+      font-size:clamp(18px,4vw,32px);
+      color:rgba(255,255,255,0.9);
+      letter-spacing:8px;
+      text-transform:uppercase;
+      text-shadow:0 2px 12px rgba(0,0,0,0.2);
+      margin-bottom:32px;
+    ">MONITOR</div>
+    <div style="
+      font-family:'DM Sans',sans-serif;
+      font-size:clamp(12px,2.5vw,16px);
+      color:rgba(255,255,255,0.7);
+      letter-spacing:2px;
+      text-transform:uppercase;
+    ">Terapia Anticoagulante Orale</div>
+  </div>
+  <div style="
+    position:absolute;bottom:40px;
+    display:flex;gap:8px;
+  ">
+    <div style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.9);animation:splashDot 1s ease-in-out 0s infinite"></div>
+    <div style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.6);animation:splashDot 1s ease-in-out 0.2s infinite"></div>
+    <div style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.3);animation:splashDot 1s ease-in-out 0.4s infinite"></div>
+  </div>
+</div>
+<style>
+@keyframes splashPulse {
+  from { opacity:0; transform:scale(0.85); }
+  to   { opacity:1; transform:scale(1); }
+}
+/* Prevent flash of content before splash hides */
+body.splash-active header, body.splash-active nav, body.splash-active main {
+  visibility: hidden;
+}
+@keyframes splashDot {
+  0%,100% { opacity:0.3; transform:scale(0.8); }
+  50%      { opacity:1;   transform:scale(1.2); }
+}
+</style>
 
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner"></div>
@@ -384,44 +450,81 @@ main{padding:28px 32px;max-width:1200px;margin:0 auto}
       </div>
     </div>
 
-    <!-- GOOGLE DRIVE SYNC -->
-    <div class="section-title">☁️ Google Drive Sync</div>
-    <div class="card" style="margin-bottom:32px">
-      <div id="driveDisconnected">
+    <!-- FIREBASE SYNC -->
+    <div class="section-title">☁️ Sincronizzazione & Notifiche</div>
+
+    <!-- LOGIN CARD -->
+    <div class="card" style="margin-bottom:20px" id="fbAuthCard">
+      <div id="fbLoggedOut">
         <div style="color:var(--muted);font-size:13px;margin-bottom:16px;line-height:1.6">
-          Sincronizza i dati tra smartphone e desktop usando Google Drive. 
-          Tutti i dispositivi connessi allo stesso account condividono gli stessi dati in tempo reale.
+          Accedi per sincronizzare i dati tra smartphone e desktop e ricevere 
+          notifiche anche a schermo spento.
         </div>
-        <div class="modal-row" style="margin-bottom:16px">
-          <div class="modal-label">Il tuo Google Client ID</div>
-          <div style="display:flex;gap:8px">
-            <input type="text" id="driveClientId" class="modal-input" 
-              placeholder="xxxxx.apps.googleusercontent.com"
-              style="font-size:12px">
-            <button onclick="saveDriveClientId()" class="btn-primary" style="white-space:nowrap;padding:0 16px">Salva</button>
+        <!-- CONFIG (collapsible) -->
+        <details style="margin-bottom:14px">
+          <summary style="font-size:12px;color:var(--muted);cursor:pointer;margin-bottom:8px">
+            ⚙️ Configurazione Firebase (solo al primo avvio)
+          </summary>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px">
+            <div class="modal-row">
+              <div class="modal-label">Firebase Config (JSON)</div>
+              <textarea id="fbConfigInput" class="modal-input" rows="4"
+                placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","messagingSenderId":"...","appId":"..."}'
+                style="font-size:11px;resize:vertical"></textarea>
+            </div>
+            <div class="modal-row">
+              <div class="modal-label">VAPID Key (per notifiche push)</div>
+              <input type="text" id="fbVapidInput" class="modal-input" placeholder="BxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxA">
+            </div>
+            <button onclick="saveFirebaseConfig()" class="btn-primary" style="width:100%">💾 Salva configurazione</button>
+            <div id="fbConfigStatus" style="font-size:12px;display:none"></div>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px">
-            Vedi SETUP-GOOGLE-DRIVE.md per come ottenerlo (5 minuti, gratuito)
+        </details>
+
+        <!-- LOGIN FORM -->
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="modal-row">
+            <div class="modal-label">Email</div>
+            <input type="email" id="fbEmail" class="modal-input" placeholder="email@esempio.it">
           </div>
+          <div class="modal-row">
+            <div class="modal-label">Password</div>
+            <input type="password" id="fbPassword" class="modal-input" placeholder="••••••••">
+          </div>
+          <div style="display:flex;gap:10px">
+            <button onclick="fbSignIn()" class="btn-primary" style="flex:1">🔑 Accedi</button>
+            <button onclick="fbRegister()" class="btn-secondary" style="flex:1">📝 Registrati</button>
+          </div>
+          <div id="fbAuthError" style="font-size:12px;color:var(--danger);display:none"></div>
         </div>
-        <button id="driveConnectBtn" onclick="driveSignIn()" class="btn-primary" style="width:100%;display:none">
-          <span style="font-size:16px;margin-right:8px">G</span> Connetti Google Drive
-        </button>
       </div>
-      <div id="driveConnected" style="display:none">
+
+      <div id="fbLoggedIn" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
           <div style="width:40px;height:40px;background:rgba(63,185,80,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px">☁️</div>
           <div>
-            <div style="font-weight:600;color:var(--accent2)">Drive connesso</div>
-            <div id="driveUserEmail" style="font-size:12px;color:var(--muted)"></div>
+            <div style="font-weight:600;color:var(--accent2)">Connesso</div>
+            <div id="fbUserEmail" style="font-size:12px;color:var(--muted)"></div>
           </div>
-          <button onclick="driveSignOut()" class="btn-secondary" style="margin-left:auto;padding:6px 14px;font-size:12px">Disconnetti</button>
+          <button onclick="fbSignOut()" class="btn-secondary" style="margin-left:auto;padding:6px 14px;font-size:12px">Esci</button>
         </div>
-        <div id="driveSyncStatus" style="font-size:12px;color:var(--muted);padding:10px;background:var(--bg);border-radius:8px;line-height:1.6"></div>
-        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
-          <button onclick="driveSyncNow()" class="btn-primary" style="flex:1">🔄 Sincronizza ora</button>
-          <button onclick="driveForceUpload()" class="btn-secondary" style="flex:1">⬆ Carica locale → Drive</button>
-          <button onclick="driveForceDownload()" class="btn-secondary" style="flex:1">⬇ Scarica Drive → locale</button>
+        <div id="fbSyncStatus" style="font-size:12px;color:var(--muted);padding:10px;background:var(--bg);border-radius:8px;line-height:1.7;margin-bottom:12px"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button onclick="fbSyncNow()" class="btn-primary" style="flex:1">🔄 Sincronizza ora</button>
+          <button onclick="fbForceUpload()" class="btn-secondary" style="flex:1">⬆ Carica su cloud</button>
+          <button onclick="fbForceDownload()" class="btn-secondary" style="flex:1">⬇ Scarica da cloud</button>
+        </div>
+
+        <!-- NOTIFICHE PUSH -->
+        <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:16px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">🔔 Notifiche push</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+            Abilita le notifiche per ricevere l'allarme anche a schermo spento.
+          </div>
+          <div id="fbNotifStatus" style="font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:10px;display:none"></div>
+          <button onclick="fbRequestNotifications()" id="fbNotifBtn" class="btn-primary" style="width:100%">
+            🔔 Abilita notifiche push
+          </button>
         </div>
       </div>
     </div>
@@ -743,7 +846,7 @@ function applyExtractedData(extracted) {
 
   // Auto backup + Drive sync after PDF load
   saveBackupToFolder(true);
-  driveAutoSync();
+  fbAutoSync();
 
   // Ask about default alarm time
   askDefaultAlarmTime(newT);
@@ -1210,7 +1313,9 @@ function saveAlarm() {
   appData=loadData(); if(!appData.alarms) appData.alarms={};
   appData.alarms[selectedDayKey]=time; saveData(appData);
   scheduleAlarm(selectedDayKey,time); closeModal(); renderTerapiaTab();
-  driveAutoSync();
+  fbAutoSync();
+  // Sync alarms to Firestore for push notifications
+  if(_fbUser && _fbDb) { navigator.serviceWorker?.ready.then(()=>fbRegisterFCM()); }
 }
 function setAlarmDirect(dateStr, time) {
   appData=loadData(); if(!appData.alarms) appData.alarms={}; appData.alarms[dateStr]=time; saveData(appData); scheduleAlarm(dateStr,time);
@@ -1227,7 +1332,7 @@ function toggleTaken(dateStr) {
   else { appData.taken[dateStr]=true; if(!appData.takenTimes) appData.takenTimes={}; appData.takenTimes[dateStr]=new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}); }
   saveData(appData); renderTerapiaTab();
   saveBackupToFolder(true);
-  driveAutoSync();
+  fbAutoSync();
 }
 
 // ===================================================
@@ -1330,7 +1435,7 @@ function confirmAlarm() {
   renderTerapiaTab();
   // Auto backup + Drive sync after dose confirmed
   saveBackupToFolder(true);
-  driveAutoSync();
+  fbAutoSync();
 }
 
 function snoozeAlarm(minutes) {
@@ -1477,312 +1582,405 @@ function hideLoading() { document.getElementById('loadingOverlay').classList.rem
 
 
 
+
 // ===================================================
-// GOOGLE DRIVE SYNC
+// FIREBASE: AUTH + FIRESTORE SYNC + FCM
 // ===================================================
 
-const DRIVE_FILE_NAME = 'tao-data.json';
-const DRIVE_MIME      = 'application/json';
-const DRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file';
+let _fbApp        = null;
+let _fbAuth       = null;
+let _fbDb         = null;
+let _fbMessaging  = null;
+let _fbUser       = null;
+let _fbUnsubscribe = null; // Firestore realtime listener
+let _fbVapidKey   = null;
+let _fbSyncing    = false;
 
-let _driveToken       = null;   // current OAuth access token
-let _driveFileId      = null;   // ID of tao-data.json on Drive
-let _driveTokenClient = null;   // GIS token client
-let _driveSyncing     = false;  // lock to prevent concurrent syncs
-let _drivePollTimer   = null;
+const FB_CONFIG_KEY = 'tao_fb_config';
+const FB_VAPID_KEY  = 'tao_fb_vapid';
 
 // ---- INIT ----
-function initDriveSync() {
-  const clientId = localStorage.getItem('tao_drive_client_id');
-  if(clientId) {
-    document.getElementById('driveClientId').value = clientId;
-    setupDriveTokenClient(clientId);
-    document.getElementById('driveConnectBtn').style.display = 'block';
-  }
-  // Restore token from session if available
-  const savedToken = sessionStorage.getItem('tao_drive_token');
-  if(savedToken && clientId) {
-    _driveToken = savedToken;
-    const email = sessionStorage.getItem('tao_drive_email') || '';
-    showDriveConnected(email);
-    driveSyncNow(true); // silent sync on init
-  }
-}
+function initFirebase() {
+  const raw = localStorage.getItem(FB_CONFIG_KEY);
+  const vapid = localStorage.getItem(FB_VAPID_KEY);
+  if(!raw) return;
+  try {
+    const config = JSON.parse(raw);
+    _fbVapidKey = vapid || null;
 
-function saveDriveClientId() {
-  const id = document.getElementById('driveClientId').value.trim();
-  if(!id || !id.includes('.apps.googleusercontent.com')) {
-    alert('Client ID non valido. Deve terminare con .apps.googleusercontent.com');
-    return;
-  }
-  localStorage.setItem('tao_drive_client_id', id);
-  setupDriveTokenClient(id);
-  document.getElementById('driveConnectBtn').style.display = 'block';
-  setDriveSyncStatus('✅ Client ID salvato. Clicca "Connetti Google Drive" per autorizzare.', 'ok');
-}
+    // Wait for Firebase modules to load
+    const tryInit = () => {
+      const mods = window._firebaseModules;
+      if(!mods) { setTimeout(tryInit, 200); return; }
 
-function setupDriveTokenClient(clientId) {
-  if(typeof google === 'undefined' || !google.accounts) {
-    setTimeout(() => setupDriveTokenClient(clientId), 500);
-    return;
+      const { initializeApp, getAuth, onAuthStateChanged,
+              getFirestore, getMessaging } = mods;
+
+      _fbApp       = initializeApp(config);
+      _fbAuth      = getAuth(_fbApp);
+      _fbDb        = getFirestore(_fbApp);
+
+      try { _fbMessaging = getMessaging(_fbApp); fbListenMessages(); } catch(e) {}
+
+      // Listen for auth state
+      onAuthStateChanged(_fbAuth, user => {
+        if(user) {
+          _fbUser = user;
+          showFbLoggedIn(user.email);
+          fbStartRealtimeSync();
+          fbSyncNow(true);
+          fbRegisterFCM();
+        } else {
+          _fbUser = null;
+          showFbLoggedOut();
+          if(_fbUnsubscribe) { _fbUnsubscribe(); _fbUnsubscribe = null; }
+        }
+      });
+    };
+
+    if(window._firebaseModules) tryInit();
+    else window.addEventListener('firebase-ready', tryInit);
+
+  } catch(e) {
+    console.error('[FB] Init error:', e);
   }
-  _driveTokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: clientId,
-    scope: DRIVE_SCOPE,
-    callback: async (resp) => {
-      if(resp.error) {
-        setDriveSyncStatus('❌ Errore autenticazione: ' + resp.error, 'err');
-        return;
-      }
-      _driveToken = resp.access_token;
-      sessionStorage.setItem('tao_drive_token', _driveToken);
-      // Get user email
-      try {
-        const info = await driveGET('https://www.googleapis.com/oauth2/v3/userinfo');
-        const email = info.email || '';
-        sessionStorage.setItem('tao_drive_email', email);
-        showDriveConnected(email);
-      } catch(e) {
-        showDriveConnected('');
-      }
-      // Initial sync
-      await driveSyncNow(false);
+
+  // Listen for messages from Service Worker (alarm actions)
+  navigator.serviceWorker?.addEventListener('message', event => {
+    const msg = event.data;
+    if(!msg) return;
+    if(msg.type === 'DOSE_CONFIRMED' && msg.date) {
+      appData = loadData();
+      if(!appData.taken) appData.taken = {};
+      if(!appData.takenTimes) appData.takenTimes = {};
+      appData.taken[msg.date] = true;
+      appData.takenTimes[msg.date] = new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+      saveData(appData);
+      renderTerapiaTab();
+      fbAutoSync();
+    }
+    if(msg.type === 'SNOOZE_ALARM' && msg.date) {
+      snoozeAlarm(msg.minutes || 15);
     }
   });
 }
 
-function driveSignIn() {
-  if(!_driveTokenClient) {
-    alert('Inserisci e salva prima il Client ID.');
-    return;
-  }
-  _driveTokenClient.requestAccessToken({ prompt: 'consent' });
-}
-
-function driveSignOut() {
-  const token = _driveToken;
-  _driveToken = null;
-  _driveFileId = null;
-  sessionStorage.removeItem('tao_drive_token');
-  sessionStorage.removeItem('tao_drive_email');
-  if(token && typeof google !== 'undefined') {
-    google.accounts.oauth2.revoke(token, () => {});
-  }
-  if(_drivePollTimer) { clearInterval(_drivePollTimer); _drivePollTimer = null; }
-  document.getElementById('driveConnected').style.display = 'none';
-  document.getElementById('driveDisconnected').style.display = 'block';
-  setDriveSyncStatus('', 'info');
-}
-
-function showDriveConnected(email) {
-  document.getElementById('driveDisconnected').style.display = 'none';
-  document.getElementById('driveConnected').style.display  = 'block';
-  if(email) document.getElementById('driveUserEmail').textContent = email;
-}
-
-// ---- SYNC LOGIC ----
-async function driveSyncNow(silent=false) {
-  if(!_driveToken) return;
-  if(_driveSyncing) return;
-  _driveSyncing = true;
-  if(!silent) setDriveSyncStatus('🔄 Sincronizzazione in corso…', 'info');
+function saveFirebaseConfig() {
+  const raw   = document.getElementById('fbConfigInput').value.trim();
+  const vapid = document.getElementById('fbVapidInput').value.trim();
+  const status = document.getElementById('fbConfigStatus');
 
   try {
-    // 1. Find or create tao-data.json in Drive appdata folder
-    if(!_driveFileId) {
-      _driveFileId = await driveFindFile();
-    }
+    const config = JSON.parse(raw);
+    if(!config.apiKey || !config.projectId) throw new Error('Config incompleta');
+    localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(config));
+    if(vapid) localStorage.setItem(FB_VAPID_KEY, vapid);
+    status.style.display = 'block';
+    status.style.color = 'var(--accent2)';
+    status.textContent = '✅ Configurazione salvata. Accedi con email e password.';
+    initFirebase();
+  } catch(e) {
+    status.style.display = 'block';
+    status.style.color = 'var(--danger)';
+    status.textContent = '❌ JSON non valido: ' + e.message;
+  }
+}
 
+// ---- AUTH ----
+async function fbSignIn() {
+  const email = document.getElementById('fbEmail').value.trim();
+  const pwd   = document.getElementById('fbPassword').value;
+  const errEl = document.getElementById('fbAuthError');
+  errEl.style.display = 'none';
+
+  if(!_fbAuth) { errEl.style.display='block'; errEl.textContent='Configura prima Firebase.'; return; }
+
+  try {
+    const { signInWithEmailAndPassword } = window._firebaseModules;
+    await signInWithEmailAndPassword(_fbAuth, email, pwd);
+  } catch(e) {
+    errEl.style.display = 'block';
+    errEl.textContent = fbErrorMsg(e.code);
+  }
+}
+
+async function fbRegister() {
+  const email = document.getElementById('fbEmail').value.trim();
+  const pwd   = document.getElementById('fbPassword').value;
+  const errEl = document.getElementById('fbAuthError');
+  errEl.style.display = 'none';
+
+  if(!_fbAuth) { errEl.style.display='block'; errEl.textContent='Configura prima Firebase.'; return; }
+  if(pwd.length < 6) { errEl.style.display='block'; errEl.textContent='Password minimo 6 caratteri.'; return; }
+
+  try {
+    const { createUserWithEmailAndPassword } = window._firebaseModules;
+    await createUserWithEmailAndPassword(_fbAuth, email, pwd);
+  } catch(e) {
+    errEl.style.display = 'block';
+    errEl.textContent = fbErrorMsg(e.code);
+  }
+}
+
+async function fbSignOut() {
+  if(!_fbAuth) return;
+  const { signOut } = window._firebaseModules;
+  await signOut(_fbAuth);
+}
+
+function fbErrorMsg(code) {
+  const msgs = {
+    'auth/user-not-found':      'Utente non trovato. Registrati prima.',
+    'auth/wrong-password':      'Password errata.',
+    'auth/invalid-email':       'Email non valida.',
+    'auth/email-already-in-use':'Email già registrata. Accedi invece di registrarti.',
+    'auth/weak-password':       'Password troppo debole (minimo 6 caratteri).',
+    'auth/invalid-credential':  'Credenziali non valide.',
+    'auth/network-request-failed': 'Errore di rete. Controlla la connessione.',
+  };
+  return msgs[code] || 'Errore: ' + code;
+}
+
+// ---- UI ----
+function showFbLoggedIn(email) {
+  document.getElementById('fbLoggedOut').style.display = 'none';
+  document.getElementById('fbLoggedIn').style.display  = 'block';
+  document.getElementById('fbUserEmail').textContent   = email;
+  setFbSyncStatus('✅ Connesso — sincronizzazione attiva', 'ok');
+}
+
+function showFbLoggedOut() {
+  document.getElementById('fbLoggedOut').style.display = 'block';
+  document.getElementById('fbLoggedIn').style.display  = 'none';
+}
+
+function setFbSyncStatus(msg, type) {
+  const colors = { ok:'var(--accent2)', warn:'var(--warn)', err:'var(--danger)', info:'var(--muted)' };
+  const el = document.getElementById('fbSyncStatus');
+  if(el) { el.textContent = msg; el.style.color = colors[type]||colors.info; }
+}
+
+// ---- FIRESTORE SYNC ----
+function fbStartRealtimeSync() {
+  if(!_fbUser || !_fbDb || _fbUnsubscribe) return;
+  const { doc, onSnapshot } = window._firebaseModules;
+  const docRef = doc(_fbDb, 'users', _fbUser.uid, 'data', 'tao');
+
+  _fbUnsubscribe = onSnapshot(docRef, snapshot => {
+    if(!snapshot.exists()) return;
+    const remoteData = snapshot.data();
     const localData  = loadData();
-    const localTime  = localData._syncTime || 0;
+    const remoteTime = remoteData._syncTime || 0;
+    const localTime  = localData._syncTime  || 0;
 
-    if(_driveFileId) {
-      // 2. Download current Drive version
-      const driveData = await driveDownloadFile(_driveFileId);
-      const driveTime = driveData._syncTime || 0;
+    if(remoteTime > localTime) {
+      // Remote is newer: update local silently
+      const merged = fbMergeData(remoteData, localData);
+      saveData(merged);
+      appData = merged;
+      calInitialized = false;
+      renderCurrentTab();
+      setFbSyncStatus(
+        `✅ Aggiornato dal cloud — ${new Date(remoteTime).toLocaleString('it-IT')}`, 'ok'
+      );
+      showAutoBackupToast('☁️ Dati aggiornati dal cloud');
+    }
+  }, err => {
+    console.error('[FB] Realtime sync error:', err);
+    setFbSyncStatus('⚠️ Errore sincronizzazione: ' + err.message, 'warn');
+  });
+}
 
-      if(driveTime > localTime) {
-        // Drive is newer
-        if(!silent) {
-          const ok = confirm(
-            `I dati su Google Drive sono più recenti (${new Date(driveTime).toLocaleString('it-IT')}).\n` +
-            `Vuoi aggiornare questo dispositivo con i dati di Drive?`
-          );
-          if(!ok) { _driveSyncing = false; return; }
-        }
-        // Merge: Drive wins but keep local alarms/taken not in Drive
-        const merged = mergeData(driveData, localData);
-        merged._syncTime = driveTime;
+function fbMergeData(remote, local) {
+  const merged = Object.assign({}, remote);
+  // Keep local taken/alarms as they are device-specific
+  merged.takenTimes = Object.assign({}, remote.takenTimes||{}, local.takenTimes||{});
+  merged.taken      = Object.assign({}, remote.taken||{}, local.taken||{});
+  merged.alarms     = Object.assign({}, remote.alarms||{}, local.alarms||{});
+  return merged;
+}
+
+async function fbSyncNow(silent=false) {
+  if(!_fbUser || !_fbDb || _fbSyncing) return;
+  _fbSyncing = true;
+  if(!silent) setFbSyncStatus('🔄 Sincronizzazione in corso…', 'info');
+
+  try {
+    const { doc, getDoc, setDoc } = window._firebaseModules;
+    const docRef    = doc(_fbDb, 'users', _fbUser.uid, 'data', 'tao');
+    const snapshot  = await getDoc(docRef);
+    const localData = loadData();
+    const localTime = localData._syncTime || 0;
+
+    if(snapshot.exists()) {
+      const remoteData = snapshot.data();
+      const remoteTime = remoteData._syncTime || 0;
+
+      if(remoteTime > localTime) {
+        const merged = fbMergeData(remoteData, localData);
+        merged._syncTime = remoteTime;
         saveData(merged);
         appData = merged;
         calInitialized = false;
         renderCurrentTab();
-        setDriveSyncStatus(`✅ Aggiornato da Drive — ${new Date(driveTime).toLocaleString('it-IT')}`, 'ok');
-      } else if(localTime > driveTime) {
-        // Local is newer: upload
-        await driveUpload(localData);
-        setDriveSyncStatus(`✅ Drive aggiornato — ${new Date(localTime).toLocaleString('it-IT')}`, 'ok');
-      } else {
-        setDriveSyncStatus(`✅ Già sincronizzato — ${new Date(localTime).toLocaleString('it-IT')}`, 'ok');
+        setFbSyncStatus(`✅ Aggiornato — ${new Date(remoteTime).toLocaleString('it-IT')}`, 'ok');
+      } else if(localTime >= remoteTime) {
+        await fbUploadData(localData);
+        setFbSyncStatus(`✅ Cloud aggiornato — ${new Date(localTime).toLocaleString('it-IT')}`, 'ok');
       }
     } else {
-      // No file on Drive yet: upload local
-      _driveFileId = await driveCreateFile(localData);
-      setDriveSyncStatus('✅ File creato su Drive e sincronizzato.', 'ok');
+      await fbUploadData(localData);
+      setFbSyncStatus('✅ Primo sync completato.', 'ok');
     }
-  } catch(err) {
-    console.error('[Drive sync error]', err);
-    if(err.status === 401) {
-      // Token expired: re-auth
-      _driveToken = null;
-      sessionStorage.removeItem('tao_drive_token');
-      setDriveSyncStatus('⚠️ Sessione scaduta. Riconnetti Google Drive.', 'warn');
-      driveSignIn();
-    } else {
-      setDriveSyncStatus('❌ Errore sync: ' + err.message, 'err');
-    }
+  } catch(e) {
+    console.error('[FB] Sync error:', e);
+    setFbSyncStatus('❌ Errore: ' + e.message, 'err');
   }
-  _driveSyncing = false;
+  _fbSyncing = false;
 }
 
-function mergeData(driveData, localData) {
-  // Drive data wins for controls and therapies
-  // Local data wins for alarms and taken times if more recent
-  const merged = Object.assign({}, driveData);
-  // Merge taken times: keep most complete set
-  const lt = localData.takenTimes || {}, dt = driveData.takenTimes || {};
-  merged.takenTimes = Object.assign({}, dt, lt);
-  const lk = localData.taken || {}, dk = driveData.taken || {};
-  merged.taken = Object.assign({}, dk, lk);
-  // Merge alarms: keep local (device-specific)
-  merged.alarms = Object.assign({}, driveData.alarms || {}, localData.alarms || {});
-  return merged;
-}
-
-async function driveUpload(data) {
-  const ts   = Date.now();
-  data._syncTime = ts;
-  saveData(data);
-  const json = JSON.stringify(data, null, 2);
-  if(_driveFileId) {
-    await drivePATCH(_driveFileId, json);
-  } else {
-    _driveFileId = await driveCreateFile(data);
-  }
-}
-
-async function driveForceUpload() {
-  if(!_driveToken) { alert('Connetti prima Google Drive.'); return; }
-  setDriveSyncStatus('⬆ Caricamento su Drive…', 'info');
-  const data = loadData();
+async function fbUploadData(data) {
+  const { doc, setDoc } = window._firebaseModules;
   data._syncTime = Date.now();
   saveData(data);
-  if(_driveFileId) {
-    await drivePATCH(_driveFileId, JSON.stringify(data, null, 2));
-  } else {
-    _driveFileId = await driveCreateFile(data);
-  }
-  setDriveSyncStatus('✅ Dati locali caricati su Drive.', 'ok');
+  const docRef = doc(_fbDb, 'users', _fbUser.uid, 'data', 'tao');
+  await setDoc(docRef, data);
 }
 
-async function driveForceDownload() {
-  if(!_driveToken) { alert('Connetti prima Google Drive.'); return; }
-  if(!_driveFileId) _driveFileId = await driveFindFile();
-  if(!_driveFileId) { setDriveSyncStatus('⚠️ Nessun file trovato su Drive.', 'warn'); return; }
-  setDriveSyncStatus('⬇ Download da Drive…', 'info');
-  const driveData = await driveDownloadFile(_driveFileId);
-  saveData(driveData);
-  appData = driveData;
+async function fbForceUpload() {
+  if(!_fbUser) { alert('Accedi prima.'); return; }
+  setFbSyncStatus('⬆ Caricamento…', 'info');
+  await fbUploadData(loadData());
+  setFbSyncStatus('✅ Dati locali caricati sul cloud.', 'ok');
+}
+
+async function fbForceDownload() {
+  if(!_fbUser) { alert('Accedi prima.'); return; }
+  const { doc, getDoc } = window._firebaseModules;
+  setFbSyncStatus('⬇ Download…', 'info');
+  const docRef   = doc(_fbDb, 'users', _fbUser.uid, 'data', 'tao');
+  const snapshot = await getDoc(docRef);
+  if(!snapshot.exists()) { setFbSyncStatus('⚠️ Nessun dato sul cloud.', 'warn'); return; }
+  const data = snapshot.data();
+  saveData(data);
+  appData = data;
   calInitialized = false;
   renderCurrentTab();
-  setDriveSyncStatus('✅ Dati scaricati da Drive e applicati.', 'ok');
+  setFbSyncStatus('✅ Dati scaricati dal cloud.', 'ok');
 }
 
-// ---- AUTO SYNC: called after every data change ----
-async function driveAutoSync() {
-  if(!_driveToken || _driveSyncing) return;
+// Auto-sync: called after every data change
+async function fbAutoSync() {
+  if(!_fbUser || !_fbDb || _fbSyncing) return;
   try {
-    const data = loadData();
-    data._syncTime = Date.now();
-    saveData(data);
-    await driveUpload(data);
-    showAutoBackupToast('☁️ Drive sincronizzato');
+    await fbUploadData(loadData());
+    showAutoBackupToast('☁️ Cloud sincronizzato');
   } catch(e) {
-    console.warn('[Drive auto-sync failed]', e);
+    console.warn('[FB] Auto-sync failed:', e);
   }
-}
-
-// ---- DRIVE API CALLS ----
-async function driveFindFile() {
-  // Search in appDataFolder first, then in root
-  const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
-  const res = await driveGET(
-    `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive,appDataFolder&fields=files(id,name,modifiedTime)&pageSize=5`
-  );
-  return res.files && res.files.length ? res.files[0].id : null;
-}
-
-async function driveDownloadFile(fileId) {
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${_driveToken}` } }
-  );
-  if(!res.ok) throw { status: res.status, message: `Download failed: ${res.status}` };
-  return res.json();
-}
-
-async function driveCreateFile(data) {
-  const meta = JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: DRIVE_MIME });
-  const body = JSON.stringify(data, null, 2);
-  const form = new FormData();
-  form.append('metadata', new Blob([meta], { type: 'application/json' }));
-  form.append('file',     new Blob([body], { type: DRIVE_MIME }));
-  const res = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
-    { method: 'POST', headers: { Authorization: `Bearer ${_driveToken}` }, body: form }
-  );
-  if(!res.ok) throw { status: res.status, message: `Create failed: ${res.status}` };
-  const json = await res.json();
-  return json.id;
-}
-
-async function drivePATCH(fileId, body) {
-  const res = await fetch(
-    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
-    { method: 'PATCH', headers: { Authorization: `Bearer ${_driveToken}`, 'Content-Type': DRIVE_MIME }, body }
-  );
-  if(!res.ok) throw { status: res.status, message: `Update failed: ${res.status}` };
-  return res.json();
-}
-
-async function driveGET(url) {
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${_driveToken}` } });
-  if(!res.ok) throw { status: res.status, message: `GET failed: ${res.status}` };
-  return res.json();
-}
-
-// ---- UI HELPERS ----
-function setDriveSyncStatus(msg, type) {
-  const colors = { ok:'var(--accent2)', warn:'var(--warn)', err:'var(--danger)', info:'var(--muted)' };
-  const el = document.getElementById('driveSyncStatus');
-  if(el) { el.textContent = msg; el.style.color = colors[type]||colors.info; }
 }
 
 function renderCurrentTab() {
   const active = document.querySelector('.tab-panel.active');
   if(!active) return;
-  const id = active.id;
-  if(id === 'tab-inr') renderINRTab();
-  else if(id === 'tab-terapia') renderTerapiaTab();
+  if(active.id==='tab-inr') renderINRTab();
+  else if(active.id==='tab-terapia') renderTerapiaTab();
 }
 
+// ---- FCM NOTIFICATIONS ----
+async function fbRegisterFCM() {
+  if(!_fbMessaging || !_fbVapidKey || !_fbUser) return;
+  try {
+    const { getToken } = window._firebaseModules;
+    const token = await getToken(_fbMessaging, { vapidKey: _fbVapidKey });
+    if(token) {
+      // Save token to Firestore so alarm-checker.js can use it
+      const { doc, setDoc } = window._firebaseModules;
+      await setDoc(
+        doc(_fbDb, 'users', _fbUser.uid, 'fcm', 'token'),
+        { token, updatedAt: new Date().toISOString(), platform: navigator.userAgent.includes('Android') ? 'android' : 'web' }
+      );
+      // Also save alarms with this token
+      await fbSyncAlarmsToFirestore(token);
+      updateFbNotifStatus('✅ Notifiche push attive', 'ok');
+      document.getElementById('fbNotifBtn').style.display = 'none';
+      console.log('[FB] FCM token registered');
+    }
+  } catch(e) {
+    console.warn('[FB] FCM token error:', e);
+    updateFbNotifStatus('⚠️ Notifiche non disponibili: ' + e.message, 'warn');
+  }
+}
+
+async function fbRequestNotifications() {
+  const perm = await Notification.requestPermission();
+  if(perm !== 'granted') {
+    updateFbNotifStatus('❌ Permesso notifiche negato. Abilitalo nelle impostazioni del browser.', 'err');
+    return;
+  }
+  await fbRegisterFCM();
+}
+
+async function fbSyncAlarmsToFirestore(fcmToken) {
+  if(!_fbUser || !_fbDb) return;
+  const { doc, setDoc } = window._firebaseModules;
+  const localData = loadData();
+  const alarms    = localData.alarms || {};
+  const taken     = localData.taken  || {};
+
+  // Write each future alarm to Firestore collection "alarms"
+  // alarm-checker.js reads this collection every minute
+  for(const [dateStr, timeStr] of Object.entries(alarms)) {
+    if(taken[dateStr]) continue; // already taken
+    const [dd,mm,yyyy] = dateStr.split('/');
+    const alarmDate = new Date(`${yyyy}-${mm}-${dd}T${timeStr}:00`);
+    if(alarmDate < new Date()) continue; // past alarms skip
+
+    const alarmId = `${_fbUser.uid}_${dateStr.replace(/\//g,'')}_${timeStr.replace(':','')}`;
+    await setDoc(
+      doc(_fbDb, 'alarms', alarmId),
+      { date: dateStr, time: timeStr, fcmToken, userId: _fbUser.uid, sent: false, createdAt: new Date().toISOString() }
+    );
+  }
+  console.log('[FB] Alarms synced to Firestore');
+}
+
+function updateFbNotifStatus(msg, type) {
+  const colors = { ok:'var(--accent2)', warn:'var(--warn)', err:'var(--danger)', info:'var(--muted)' };
+  const el = document.getElementById('fbNotifStatus');
+  if(!el) return;
+  el.style.display = 'block';
+  el.style.color   = colors[type]||colors.info;
+  el.style.background = type==='ok' ? 'rgba(63,185,80,.1)' : 'rgba(240,136,62,.1)';
+  el.style.padding = '8px 12px';
+  el.style.borderRadius = '8px';
+  el.textContent = msg;
+}
+
+// Listen for FCM messages when app is open
+function fbListenMessages() {
+  if(!_fbMessaging) return;
+  const { onMessage } = window._firebaseModules;
+  onMessage(_fbMessaging, payload => {
+    console.log('[FB] Message received:', payload);
+    const data = payload.data || {};
+    if(data.type === 'DOSE_ALARM') {
+      // Show in-app alarm toast
+      currentAlarmDate = data.date;
+      document.getElementById('alarmSub').textContent =
+        `${data.date} — orario programmato: ${data.time}`;
+      document.getElementById('alarmToast').classList.add('show');
+      startAlarmSound();
+    }
+  });
+}
 
 // ===================================================
 // STRUMENTI: BACKUP & PDF REPORT
 // ===================================================
 
 function initStrumenti() {
-  initDriveSync();
+  initFirebase();
   const data = loadData();
   const controls = data.controls || [];
   if(!controls.length) return;
@@ -1932,7 +2130,7 @@ Terapie: ${(parsed.therapies||[]).length}`)) {
       if(th.length) updatePatientBadge(th[th.length-1].paziente);
       initAlarms();
 // Init Drive if already authenticated from previous session
-setTimeout(initDriveSync, 1000);
+setTimeout(initFirebase, 1000);
     } catch(err) {
       msg.style.display = 'block';
       msg.style.color = 'var(--danger)';
@@ -2230,7 +2428,53 @@ function initAlarms() {
     setTimeout(()=>askDefaultAlarmTime(th[th.length-1]),800);
   }
 }
+// ===================================================
+// SMART STARTUP
+// ===================================================
+function lockLandscapeOnMobile() {
+  const w = window.screen.width, h = window.screen.height;
+  const isSmartphone = Math.min(w,h) < 600; // phones have short side < 600px
+  if(!isSmartphone) return;
+  if(screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(()=>{});
+  }
+}
+
+function hideSplash() {
+  const splash = document.getElementById('splashScreen');
+  if(!splash) return;
+  splash.style.opacity = '0';
+  splash.style.transform = 'scale(1.05)';
+  document.body.classList.remove('splash-active');
+  setTimeout(() => { splash.style.display='none'; }, 500);
+}
+
+function openStartupTab() {
+  const data = loadData();
+  const hasTherapy = (data.therapies&&data.therapies.length>0) || data.therapy;
+  if(hasTherapy) {
+    switchTab('terapia');
+    setTimeout(() => {
+      setView('list');
+      setTimeout(() => {
+        const todayEl = document.querySelector('[data-today="true"]');
+        if(todayEl) todayEl.scrollIntoView({behavior:'smooth', block:'center'});
+      }, 300);
+    }, 150);
+  } else {
+    switchTab('upload');
+  }
+}
+
+// Run startup sequence
+lockLandscapeOnMobile();
 initAlarms();
+setTimeout(initFirebase, 800);
+setTimeout(() => {
+  hideSplash();
+  openStartupTab();
+}, 1200);
+
 </script>
 <script>
 if('serviceWorker' in navigator) {

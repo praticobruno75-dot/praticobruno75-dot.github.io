@@ -190,3 +190,66 @@ self.addEventListener('message', event => {
     self.skipWaiting();
   }
 });
+
+// =============================================
+// FCM BACKGROUND MESSAGES
+// =============================================
+self.addEventListener('push', event => {
+  if(!event.data) return;
+  let payload;
+  try { payload = event.data.json(); } catch(e) { return; }
+
+  const title = payload.notification?.title || '💊 Ora del Coumadin!';
+  const body  = payload.notification?.body  || 'Ricorda di prendere il farmaco';
+  const data  = payload.data || {};
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon:             '/icon-192.png',
+      badge:            '/icon-192.png',
+      tag:              'tao-alarm',
+      renotify:         true,
+      requireInteraction: true,
+      vibrate:          [300, 100, 300, 100, 300],
+      data,
+      actions: [
+        { action: 'confirm',  title: '✅ Confermo assunzione' },
+        { action: 'snooze15', title: '⏰ +15 minuti' }
+      ]
+    })
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const data = event.notification.data || {};
+
+  if(event.action === 'confirm') {
+    // Notify open windows to mark dose as taken
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+        clients.forEach(client => client.postMessage({ type: 'DOSE_CONFIRMED', date: data.date }));
+        if(clients.length) return clients[0].focus();
+        return self.clients.openWindow('/');
+      })
+    );
+  } else if(event.action === 'snooze15') {
+    // Write snooze to be picked up by alarm-checker.js
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+        clients.forEach(client => client.postMessage({
+          type: 'SNOOZE_ALARM', date: data.date, minutes: 15
+        }));
+      })
+    );
+  } else {
+    // Open app
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window' }).then(clients => {
+        if(clients.length) return clients[0].focus();
+        return self.clients.openWindow('/');
+      })
+    );
+  }
+});
