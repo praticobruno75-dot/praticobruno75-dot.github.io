@@ -314,7 +314,24 @@ body.splash-active header, body.splash-active nav, body.splash-active main {
     <div class="modal-title" id="modalTitle">⏰ Imposta orario</div>
     <div class="modal-row">
       <div class="modal-label">Orario assunzione</div>
-      <input type="time" class="modal-input" id="modalTime" value="17:30">
+      <!-- Custom time picker -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:0;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px;user-select:none">
+        <!-- Hours -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <button onclick="adjustTime('h',1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:48px;height:36px;font-size:18px;cursor:pointer">▲</button>
+          <div id="tpHour" style="font-family:'DM Mono',monospace;font-size:36px;font-weight:700;color:var(--text);width:64px;text-align:center;line-height:1.2">17</div>
+          <button onclick="adjustTime('h',-1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:48px;height:36px;font-size:18px;cursor:pointer">▼</button>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:36px;font-weight:700;color:var(--muted);padding:0 8px;margin-bottom:2px">:</div>
+        <!-- Minutes -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <button onclick="adjustTime('m',5)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:48px;height:36px;font-size:18px;cursor:pointer">▲</button>
+          <div id="tpMin" style="font-family:'DM Mono',monospace;font-size:36px;font-weight:700;color:var(--text);width:64px;text-align:center;line-height:1.2">30</div>
+          <button onclick="adjustTime('m',-5)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:48px;height:36px;font-size:18px;cursor:pointer">▼</button>
+        </div>
+      </div>
+      <!-- Hidden input to store value -->
+      <input type="hidden" id="modalTime" value="17:30">
     </div>
     <div class="modal-btns">
       <button class="btn-secondary" onclick="closeModal()">Annulla</button>
@@ -430,11 +447,36 @@ body.splash-active header, body.splash-active nav, body.splash-active main {
           </div>
         </div>
       </div>
+      <!-- PATIENT IDENTITY BOX -->
+      <div id="patientIdentityBox" style="display:none;margin-bottom:16px;padding:14px 16px;background:rgba(255,123,45,0.08);border:2px solid rgba(255,123,45,0.4);border-radius:12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="font-size:20px">👤</span>
+          <div id="patientBoxName" style="font-size:17px;font-weight:700;color:var(--text);letter-spacing:0.3px">—</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px">
+          <div style="font-size:12px;color:var(--muted)">
+            CF: <span id="patientBoxCF" style="font-family:'DM Mono',monospace;color:var(--accent2);font-size:12px;letter-spacing:1px">—</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted)">
+            Nato il: <span id="patientBoxDOB" style="color:var(--text);font-size:12px">—</span>
+          </div>
+        </div>
+      </div>
+
       <div class="cards-grid" id="terapiaCardsGrid" style="grid-template-columns:1fr;margin-bottom:24px">
-        <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div class="card-label">Farmaco</div><div class="card-value" id="terapiaFarmaco" style="font-size:18px">—</div></div>
-        <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div class="card-label">Dose</div><div style="text-align:right"><div class="card-value inr-good" id="terapiaDose">—</div><div class="card-sub">cpr/die</div></div></div>
-        <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div class="card-label">Giorni totali</div><div class="card-value" id="terapiaDurata">—</div></div>
-        <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div class="card-label">Assunzioni</div><div style="text-align:right"><div class="card-value inr-good" id="takenCount">0</div><div class="card-sub" id="takenTotal">su — giorni</div></div><div class="progress-bar-wrap"><div class="progress-bar-fill" id="takenProgress" style="width:0%"></div></div></div>
+        <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="card-label" style="white-space:nowrap">Farmaco</div><div class="card-value" id="terapiaFarmaco" style="font-size:16px;text-align:right">—</div></div>
+        <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="card-label" style="white-space:nowrap">Dose</div><div style="text-align:right"><div class="card-value inr-good" id="terapiaDose">—</div><div class="card-sub">cpr/die</div></div></div>
+        <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="card-label" style="white-space:nowrap">Giorni totali</div><div class="card-value" id="terapiaDurata">—</div></div>
+        <div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+    <div class="card-label" style="white-space:nowrap">Assunzioni</div>
+    <div style="text-align:right">
+      <div class="card-value inr-good" id="takenCount">0</div>
+      <div class="card-sub" id="takenTotal">su — giorni</div>
+    </div>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar-fill" id="takenProgress" style="width:0%"></div></div>
+</div>
       </div>
       <div id="calView">
         <div class="cal-header">
@@ -642,7 +684,21 @@ body.splash-active header, body.splash-active nav, body.splash-active main {
     <!-- Alarm time -->
     <div class="modal-row">
       <div class="modal-label">⏰ Orario allarme</div>
-      <input type="time" class="modal-input" id="dayDetailTime" value="17:30">
+      <!-- Custom time picker for day detail -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:0;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px;user-select:none">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <button onclick="adjustDetailTime('h',1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:48px;height:36px;font-size:18px;cursor:pointer">▲</button>
+          <div id="dtpHour" style="font-family:'DM Mono',monospace;font-size:36px;font-weight:700;color:var(--text);width:64px;text-align:center;line-height:1.2">17</div>
+          <button onclick="adjustDetailTime('h',-1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:48px;height:36px;font-size:18px;cursor:pointer">▼</button>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:36px;font-weight:700;color:var(--muted);padding:0 8px;margin-bottom:2px">:</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <button onclick="adjustDetailTime('m',5)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:48px;height:36px;font-size:18px;cursor:pointer">▲</button>
+          <div id="dtpMin" style="font-family:'DM Mono',monospace;font-size:36px;font-weight:700;color:var(--text);width:64px;text-align:center;line-height:1.2">30</div>
+          <button onclick="adjustDetailTime('m',-5)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:48px;height:36px;font-size:18px;cursor:pointer">▼</button>
+        </div>
+      </div>
+      <input type="hidden" id="dayDetailTime" value="17:30">
     </div>
 
     <!-- Taken status -->
@@ -1255,7 +1311,19 @@ function renderTerapiaTab() {
   if(currentTherapyIdx < 0) currentTherapyIdx = 0;
 
   const t = therapies[currentTherapyIdx];
-  document.getElementById('terapiaFarmaco').textContent = t.farmaco||'—';
+  // Show farmaco name only — strip any CF that might be appended
+  const farmacoDisplay = (t.farmaco||'—').replace(/[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]/g,'').replace(/\s+/g,' ').trim();
+  document.getElementById('terapiaFarmaco').textContent = farmacoDisplay;
+
+  // Update patient identity box
+  const paz = t.paziente || {};
+  const identityBox = document.getElementById('patientIdentityBox');
+  if(paz.nome && identityBox) {
+    identityBox.style.display = 'block';
+    document.getElementById('patientBoxName').textContent = paz.nome || '—';
+    document.getElementById('patientBoxCF').textContent = paz.codiceFiscale || '—';
+    document.getElementById('patientBoxDOB').textContent = paz.dataNascita || '—';
+  }
 
   // Dose range for current therapy only
   const doseVals = Object.values(t.dosePerId||{});
@@ -1634,7 +1702,9 @@ function openModal(dateStr) {
   selectedDayKey=dateStr;
   const data=loadData();
   document.getElementById('modalTitle').textContent=`⏰ Orario per il ${dateStr}`;
-  document.getElementById('modalTime').value=data.alarms?.[dateStr]||data.defaultAlarmTime||'17:30';
+  const _mTimeVal = data.alarms?.[dateStr]||data.defaultAlarmTime||'17:30';
+  document.getElementById('modalTime').value = _mTimeVal;
+  initTimePicker('modalTime', _mTimeVal);
   document.getElementById('dayModal').classList.add('active');
 }
 function closeModal() { document.getElementById('dayModal').classList.remove('active'); selectedDayKey=null; }
@@ -1992,7 +2062,9 @@ function _renderDayDetailModal(dateStr, data) {
   document.getElementById('dayDetailDose').textContent = `${doseToText(dose)} — ${mg}mg`;
 
   // Alarm time
-  document.getElementById('dayDetailTime').value = alarms[dateStr] || data.defaultAlarmTime || '17:30';
+  const _dtTimeVal = alarms[dateStr] || data.defaultAlarmTime || '17:30';
+  document.getElementById('dayDetailTime').value = _dtTimeVal;
+  initTimePicker('dayDetailTime', _dtTimeVal);
 
   // Taken status
   const isTaken = taken[dateStr];
@@ -2185,6 +2257,67 @@ function resetRingtone() {
 
 function getRingtoneUri() {
   return localStorage.getItem(RINGTONE_KEY) || null;
+}
+
+// ===================================================
+// CUSTOM TIME PICKER
+// ===================================================
+function initTimePicker(elementId, timeStr) {
+  const parts = (timeStr || '17:30').split(':');
+  let h = parseInt(parts[0]) || 17;
+  let m = parseInt(parts[1]) || 30;
+  m = Math.round(m / 5) * 5; // round to nearest 5
+  if(m >= 60) { m = 0; h = (h + 1) % 24; }
+
+  const prefix = elementId === 'modalTime' ? 'tp' : 'dtp';
+  const hourEl = document.getElementById(prefix + 'Hour');
+  const minEl = document.getElementById(prefix + 'Min');
+  if(hourEl) hourEl.textContent = String(h).padStart(2,'0');
+  if(minEl) minEl.textContent = String(m).padStart(2,'0');
+  updateHiddenTime(elementId, prefix);
+}
+
+function updateHiddenTime(inputId, prefix) {
+  const h = document.getElementById(prefix + 'Hour')?.textContent || '17';
+  const m = document.getElementById(prefix + 'Min')?.textContent || '30';
+  const input = document.getElementById(inputId);
+  if(input) input.value = `${h}:${m}`;
+}
+
+function adjustTime(part, delta) {
+  const hourEl = document.getElementById('tpHour');
+  const minEl = document.getElementById('tpMin');
+  if(!hourEl || !minEl) return;
+  let h = parseInt(hourEl.textContent);
+  let m = parseInt(minEl.textContent);
+  if(part === 'h') {
+    h = (h + delta + 24) % 24;
+  } else {
+    m = m + delta;
+    if(m >= 60) { m = 0; h = (h + 1) % 24; }
+    if(m < 0) { m = 55; h = (h - 1 + 24) % 24; }
+  }
+  hourEl.textContent = String(h).padStart(2,'0');
+  minEl.textContent = String(m).padStart(2,'0');
+  updateHiddenTime('modalTime', 'tp');
+}
+
+function adjustDetailTime(part, delta) {
+  const hourEl = document.getElementById('dtpHour');
+  const minEl = document.getElementById('dtpMin');
+  if(!hourEl || !minEl) return;
+  let h = parseInt(hourEl.textContent);
+  let m = parseInt(minEl.textContent);
+  if(part === 'h') {
+    h = (h + delta + 24) % 24;
+  } else {
+    m = m + delta;
+    if(m >= 60) { m = 0; h = (h + 1) % 24; }
+    if(m < 0) { m = 55; h = (h - 1 + 24) % 24; }
+  }
+  hourEl.textContent = String(h).padStart(2,'0');
+  minEl.textContent = String(m).padStart(2,'0');
+  updateHiddenTime('dayDetailTime', 'dtp');
 }
 
 // ===================================================
