@@ -3368,44 +3368,64 @@ async function generatePDFReport() {
 
   if(window.isCapacitor) {
     try {
+      // Render PDF using PDF.js inside a canvas overlay
       const pdfDataUri = doc.output('datauristring');
+      const pdfData = atob(pdfDataUri.split(',')[1]);
+      const pdfArray = new Uint8Array(pdfData.length);
+      for(let i = 0; i < pdfData.length; i++) pdfArray[i] = pdfData.charCodeAt(i);
 
-      // Create full-screen PDF viewer overlay inside the app
+      // Create overlay
       const overlay = document.createElement('div');
       overlay.id = 'pdfOverlay';
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;display:flex;flex-direction:column';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#525659;display:flex;flex-direction:column;overflow:hidden';
       overlay.innerHTML = `
-        <div style="background:#161b22;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #30363d;flex-shrink:0">
-          <span style="color:white;font-weight:600;font-size:13px">📄 ${fname}</span>
+        <div style="background:#323639;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <span style="color:white;font-size:13px;font-weight:600">📄 ${fname}</span>
           <div style="display:flex;gap:8px">
             <button id="pdfShareBtn" style="background:#238636;color:white;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px">📤 Condividi</button>
-            <button onclick="document.getElementById('pdfOverlay').remove()" style="background:#21262d;color:#ccc;border:1px solid #30363d;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px">✕</button>
+            <button onclick="document.getElementById('pdfOverlay').remove()" style="background:#555;color:white;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px">✕ Chiudi</button>
           </div>
         </div>
-        <iframe src="${pdfDataUri}" style="flex:1;border:none;width:100%;background:white"></iframe>`;
+        <div id="pdfPages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:16px"></div>`;
       document.body.appendChild(overlay);
 
-      // Share button using Web Share API
+      // Render all pages with PDF.js
+      const pagesContainer = document.getElementById('pdfPages');
+      const loadingTask = pdfjsLib.getDocument({ data: pdfArray });
+      const pdf = await loadingTask.promise;
+
+      for(let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: window.devicePixelRatio || 1.5 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.cssText = `width:100%;max-width:${viewport.width / (window.devicePixelRatio||1.5)}px;box-shadow:0 2px 8px rgba(0,0,0,0.4);background:white`;
+        pagesContainer.appendChild(canvas);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      }
+
+      // Share button
       document.getElementById('pdfShareBtn').onclick = async () => {
         try {
           const blob = doc.output('blob');
           const file = new File([blob], fname, { type: 'application/pdf' });
-          if(navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file], title: 'TAO Monitor Report' });
-          } else if(navigator.share) {
-            await navigator.share({ title: 'TAO Monitor Report', text: fname, url: pdfDataUri });
+          if(navigator.canShare?.({ files:[file] })) {
+            await navigator.share({ files:[file], title:'TAO Monitor Report' });
           } else {
-            const link = document.createElement('a');
-            link.href = pdfDataUri; link.download = fname; link.click();
+            const a = document.createElement('a');
+            a.href = pdfDataUri; a.download = fname; a.click();
           }
-        } catch(e) { console.warn('Share:', e); }
+        } catch(e) { console.warn('Share:', e.message); }
       };
 
       msgEl.style.color = 'var(--accent2)';
-      msgEl.textContent = `✅ Report generato: ${fname}`;
+      msgEl.textContent = `✅ Report generato — ${pdf.numPages} pagine`;
       return;
     } catch(e) {
-      console.warn('[TAO] PDF viewer error:', e.message || e);
+      console.warn('[TAO] PDF render error:', e.message || e);
+      msgEl.style.color = 'var(--warn)';
+      msgEl.textContent = '⚠️ Errore visualizzazione PDF';
     }
   }
 
