@@ -521,6 +521,30 @@ body.splash-active header, body.splash-active nav, body.splash-active main {
   <div class="tab-panel" id="tab-strumenti">
 
     <!-- BACKUP -->
+    <!-- BATTERY OPTIMIZATION SECTION -->
+    <div class="section-title">🔋 Ottimizzazione batteria</div>
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Per garantire che gli allarmi suonino sempre — anche a schermo spento — 
+        è necessario disabilitare l'ottimizzazione batteria per TAO Monitor.<br>
+        <span style="color:var(--warn)">⚠️ Senza questa impostazione l'allarme potrebbe non suonare.</span>
+      </div>
+      <div id="batteryOptStatus" style="font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:12px;display:none"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button onclick="openBatterySettings()" class="btn-primary" style="flex:1" id="batteryOptBtn">
+          🔋 Disabilita ottimizzazione batteria
+        </button>
+        <button onclick="checkBatteryOptimization()" class="btn-secondary" style="flex:1">
+          🔍 Verifica stato
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6">
+        Su <b>Xiaomi/MIUI</b>: Impostazioni → App → TAO Monitor → Risparmio energetico → Nessuna restrizione<br>
+        Su <b>Huawei</b>: Impostazioni → Batteria → Avvio app → TAO Monitor → Gestione manuale<br>
+        Su <b>Samsung</b>: Impostazioni → Batteria → Ottimizzazione batteria → TAO Monitor → Non ottimizzare
+      </div>
+    </div>
+
     <!-- RINGTONE SECTION -->
     <div class="section-title">🔔 Suoneria allarme</div>
     <div class="card" style="margin-bottom:20px">
@@ -2260,6 +2284,59 @@ function getRingtoneUri() {
 }
 
 // ===================================================
+// BATTERY OPTIMIZATION
+// ===================================================
+function openBatterySettings() {
+  if(!window.isCapacitor) {
+    showAutoBackupToast('⚠️ Disponibile solo nell\'app Android');
+    return;
+  }
+  try {
+    // Open battery optimization settings via Capacitor
+    const { App } = window.Capacitor.Plugins;
+    // Use Android intent to open battery optimization settings
+    window.Capacitor.Plugins.App?.openUrl({
+      url: 'package:it.taomonitor.app'
+    });
+  } catch(e) {
+    console.warn('[TAO] Battery settings error:', e);
+  }
+
+  // Show manual instructions
+  const status = document.getElementById('batteryOptStatus');
+  if(status) {
+    status.style.display = 'block';
+    status.style.background = 'rgba(88,166,255,0.1)';
+    status.style.color = 'var(--accent)';
+    status.textContent = '📱 Vai in Impostazioni → Batteria → Ottimizzazione batteria → TAO Monitor → Non ottimizzare';
+  }
+}
+
+async function checkBatteryOptimization() {
+  if(!window.isCapacitor) {
+    showAutoBackupToast('⚠️ Disponibile solo nell\'app Android');
+    return;
+  }
+  const status = document.getElementById('batteryOptStatus');
+  if(!status) return;
+
+  // We can't directly check battery optimization from JS
+  // Show a helpful message instead
+  status.style.display = 'block';
+  status.style.background = 'rgba(240,136,62,0.1)';
+  status.style.color = 'var(--warn)';
+  status.textContent = '⚠️ Per verificare: Impostazioni → Batteria → Ottimizzazione batteria → cerca TAO Monitor. Se mostra "Ottimizzata" premi il pulsante sopra per disabilitarla.';
+}
+
+function initBatteryOptUI() {
+  // Show battery section only in Capacitor
+  if(!window.isCapacitor) {
+    const btn = document.getElementById('batteryOptBtn');
+    if(btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+  }
+}
+
+// ===================================================
 // CUSTOM TIME PICKER
 // ===================================================
 function initTimePicker(elementId, timeStr) {
@@ -3291,22 +3368,35 @@ async function generatePDFReport() {
 
   if(window.isCapacitor) {
     try {
-      const { Filesystem } = window.Capacitor.Plugins;
+      const { Filesystem, Share } = window.Capacitor.Plugins;
       if(Filesystem) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-        await Filesystem.writeFile({
+        // Save to app documents first, then share/open
+        const result = await Filesystem.writeFile({
           path: fname,
           data: pdfBase64,
-          directory: 'DOWNLOADS',
+          directory: 'DOCUMENTS',
           recursive: true
         });
         msgEl.style.color = 'var(--accent2)';
-        msgEl.textContent = `✅ Report salvato in Download: ${fname}`;
+        msgEl.textContent = `✅ Report salvato. Apertura condivisione...`;
+        // Share the file so user can save to Downloads or send
+        if(Share) {
+          await Share.share({
+            title: 'TAO Monitor Report',
+            text: `Report INR — ${fname}`,
+            url: result.uri,
+            dialogTitle: 'Salva o condividi il report PDF'
+          });
+        }
         return;
       }
     } catch(e) {
       console.warn('[TAO] Filesystem save failed:', e);
+      msgEl.style.color = 'var(--warn)';
+      msgEl.textContent = '⚠️ Errore salvataggio. Riprova.';
     }
+    return;
   }
 
   doc.save(fname);
@@ -3454,6 +3544,7 @@ initAlarms();
 initSwipe();
 initCapacitor();
 initRingtoneUI();
+initBatteryOptUI();
 
 // Hide splash immediately in Capacitor, after 1.2s in browser
 const splashDelay = window.isCapacitor ? 100 : 1200;
