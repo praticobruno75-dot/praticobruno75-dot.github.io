@@ -3101,13 +3101,9 @@ setTimeout(initFirebase, 1000);
 // ---- PDF REPORT ----
 function handlePDFReport() {
   if(window.isCapacitor) {
-    // On Android: open web version in external Chrome at report section
-    const url = 'https://praticobruno75-dot.github.io/?tab=strumenti&action=report';
-    if(window.Capacitor?.Plugins?.Browser) {
-      window.Capacitor.Plugins.Browser.open({ url });
-    } else {
-      window.open(url, '_system');
-    }
+    const url = 'https://praticobruno75-dot.github.io/?action=report';
+    // _system opens in external browser on Android/iOS in Capacitor
+    window.open(url, '_system');
     return;
   }
   generatePDFReport();
