@@ -1959,8 +1959,13 @@ function showAlarmToast(dateStr, time) {
   const sub = document.getElementById('alarmSub');
   if(sub) sub.textContent = `${dateStr} — orario programmato: ${time}`;
   const toast = document.getElementById('alarmToast');
-  if(toast) toast.classList.add('show');
-  startAlarmSound();
+  if(toast) {
+    toast.classList.add('show');
+    // Scroll toast into view on mobile
+    toast.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  // Try to play sound — may fail in Capacitor without user gesture
+  try { startAlarmSound(); } catch(e) { console.warn('[TAO] Sound error:', e); }
 }
 
 function toggleTakenFromAlarm(dateStr) {
@@ -2289,6 +2294,13 @@ function fbStartRealtimeSync() {
       if(_dayDetailKey && document.getElementById('dayDetailModal').classList.contains('active')) {
         _renderDayDetailModal(_dayDetailKey, merged);
       }
+
+      // Reschedule all alarms after sync (in case alarms were set on another device)
+      Object.entries(merged.alarms||{}).forEach(([date, time]) => {
+        if(!merged.taken||merged.taken[date]!==true) {
+          scheduleAlarm(date, time);
+        }
+      });
     }
   }, err => {
     console.error('[FB] Realtime sync error:', err);
