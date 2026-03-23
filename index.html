@@ -3405,18 +3405,47 @@ async function generatePDFReport() {
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
       }
 
-      // Share button
+      // Share button — try multiple methods
       document.getElementById('pdfShareBtn').onclick = async () => {
+        const btn = document.getElementById('pdfShareBtn');
+        btn.textContent = '⏳...';
+        btn.disabled = true;
         try {
           const blob = doc.output('blob');
           const file = new File([blob], fname, { type: 'application/pdf' });
-          if(navigator.canShare?.({ files:[file] })) {
-            await navigator.share({ files:[file], title:'TAO Monitor Report' });
-          } else {
-            const a = document.createElement('a');
-            a.href = pdfDataUri; a.download = fname; a.click();
+
+          // Method 1: Web Share API with file (Chrome Android)
+          if(typeof navigator.share === 'function') {
+            await navigator.share({
+              files: [file],
+              title: 'TAO Monitor Report INR'
+            });
+            btn.textContent = '📤 Condividi';
+            btn.disabled = false;
+            return;
           }
-        } catch(e) { console.warn('Share:', e.message); }
+        } catch(e) {
+          console.warn('[TAO] Web Share error:', e.message);
+        }
+
+        try {
+          // Method 2: download via object URL
+          const blob = doc.output('blob');
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fname;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          btn.textContent = '📤 Condividi';
+          btn.disabled = false;
+        } catch(e) {
+          console.warn('[TAO] Download error:', e.message);
+          btn.textContent = '❌ Errore';
+          btn.disabled = false;
+        }
       };
 
       msgEl.style.color = 'var(--accent2)';
