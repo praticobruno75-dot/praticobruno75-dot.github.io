@@ -3102,8 +3102,18 @@ setTimeout(initFirebase, 1000);
 function handlePDFReport() {
   if(window.isCapacitor) {
     const url = 'https://praticobruno75-dot.github.io/?action=report';
-    // _system opens in external browser on Android/iOS in Capacitor
-    window.open(url, '_system');
+    try {
+      // Use AlarmPlugin.openUrl to open in external browser
+      const { AlarmPlugin } = window.Capacitor.Plugins;
+      if(AlarmPlugin) {
+        AlarmPlugin.openUrl({ url });
+        return;
+      }
+    } catch(e) {
+      console.warn('[TAO] openUrl error:', e.message);
+    }
+    // Fallback
+    window.open(url, '_blank');
     return;
   }
   generatePDFReport();
