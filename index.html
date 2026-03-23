@@ -83,6 +83,7 @@ main{padding:28px 32px;max-width:1200px;margin:0 auto}
 .upload-title{font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:8px}
 .upload-sub{color:var(--muted);font-size:13px}
 .cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin:24px 0}
+@media(min-width:768px){#terapiaCardsGrid{grid-template-columns:repeat(2,1fr)}}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--card-radius);padding:20px}
 .card-label{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:8px}
 .card-value{font-family:'DM Mono',monospace;font-size:28px;font-weight:500;line-height:1}
@@ -346,7 +347,10 @@ body.splash-active header, body.splash-active nav, body.splash-active main {
     </div>
   </div>
   <div class="header-right">
-    <div class="patient-badge" id="patientBadge"><span class="patient-name" id="patientNameHeader">—</span></div>
+    <div class="patient-badge" id="patientBadge">
+      <span class="patient-name" id="patientNameHeader">—</span>
+      <span id="patientCFHeader" style="display:block;font-size:10px;color:var(--muted);letter-spacing:0.5px;margin-top:2px;font-family:'DM Mono',monospace;line-height:1"></span>
+    </div>
     <button id="notifBtn" onclick="requestNotifPermission()" style="display:none;padding:8px 16px;background:rgba(88,166,255,.1);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">🔔 Abilita notifiche</button>
   </div>
 </header>
@@ -426,11 +430,11 @@ body.splash-active header, body.splash-active nav, body.splash-active main {
           </div>
         </div>
       </div>
-      <div class="cards-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:24px">
-        <div class="card"><div class="card-label">Farmaco</div><div class="card-value" id="terapiaFarmaco" style="font-size:18px">—</div></div>
-        <div class="card"><div class="card-label">Dose</div><div class="card-value inr-good" id="terapiaDose">—</div><div class="card-sub">cpr/die</div></div>
-        <div class="card"><div class="card-label">Giorni totali</div><div class="card-value" id="terapiaDurata">—</div></div>
-        <div class="card"><div class="card-label">Assunzioni</div><div class="card-value inr-good" id="takenCount">0</div><div class="card-sub" id="takenTotal">su — giorni</div><div class="progress-bar-wrap"><div class="progress-bar-fill" id="takenProgress" style="width:0%"></div></div></div>
+      <div class="cards-grid" id="terapiaCardsGrid" style="grid-template-columns:1fr;margin-bottom:24px">
+        <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div class="card-label">Farmaco</div><div class="card-value" id="terapiaFarmaco" style="font-size:18px">—</div></div>
+        <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div class="card-label">Dose</div><div style="text-align:right"><div class="card-value inr-good" id="terapiaDose">—</div><div class="card-sub">cpr/die</div></div></div>
+        <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div class="card-label">Giorni totali</div><div class="card-value" id="terapiaDurata">—</div></div>
+        <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div class="card-label">Assunzioni</div><div style="text-align:right"><div class="card-value inr-good" id="takenCount">0</div><div class="card-sub" id="takenTotal">su — giorni</div></div><div class="progress-bar-wrap"><div class="progress-bar-fill" id="takenProgress" style="width:0%"></div></div></div>
       </div>
       <div id="calView">
         <div class="cal-header">
@@ -1038,7 +1042,13 @@ function showExtractedResult(extracted) {
   document.getElementById('uploadResult').style.display = 'block';
   document.getElementById('uploadResultText').textContent = `Dati estratti dal ${ctrl.data}. Storico: ${appData.controls.length} controlli, ${appData.therapies.length} periodi terapia.`;
 }
-function updatePatientBadge(p) { if(!p?.nome) return; document.getElementById('patientNameHeader').textContent=p.nome; document.getElementById('patientBadge').classList.add('visible'); }
+function updatePatientBadge(p) {
+  if(!p?.nome) return;
+  document.getElementById('patientNameHeader').textContent = p.nome;
+  const cfEl = document.getElementById('patientCFHeader');
+  if(cfEl && p.codiceFiscale) cfEl.textContent = p.codiceFiscale;
+  document.getElementById('patientBadge').classList.add('visible');
+}
 
 // ===================================================
 // INR TAB
