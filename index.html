@@ -3368,35 +3368,44 @@ async function generatePDFReport() {
 
   if(window.isCapacitor) {
     try {
-      const { Filesystem, Share } = window.Capacitor.Plugins;
-      if(Filesystem) {
-        const pdfBase64 = doc.output('datauristring').split(',')[1];
-        // Save to app documents first, then share/open
-        const result = await Filesystem.writeFile({
-          path: fname,
-          data: pdfBase64,
-          directory: 'DOCUMENTS',
-          recursive: true
-        });
+      const { Filesystem } = window.Capacitor.Plugins;
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+
+      // Step 1: write to cache directory
+      const writeResult = await Filesystem.writeFile({
+        path: fname,
+        data: pdfBase64,
+        directory: 'CACHE',
+        recursive: true
+      });
+      console.log('[TAO] PDF written to:', writeResult.uri);
+
+      // Step 2: use Android share intent to let user save/send
+      const shareData = {
+        title: 'TAO Monitor — Report INR',
+        text: fname,
+        url: writeResult.uri,
+        dialogTitle: 'Salva o condividi il report'
+      };
+
+      // Try Capacitor Share plugin
+      if(window.Capacitor.Plugins.Share) {
+        await window.Capacitor.Plugins.Share.share(shareData);
         msgEl.style.color = 'var(--accent2)';
-        msgEl.textContent = `✅ Report salvato. Apertura condivisione...`;
-        // Share the file so user can save to Downloads or send
-        if(Share) {
-          await Share.share({
-            title: 'TAO Monitor Report',
-            text: `Report INR — ${fname}`,
-            url: result.uri,
-            dialogTitle: 'Salva o condividi il report PDF'
-          });
-        }
-        return;
+        msgEl.textContent = `✅ Report pronto: ${fname}`;
+      } else {
+        // Fallback: open URI directly
+        window.open(writeResult.uri, '_blank');
+        msgEl.style.color = 'var(--accent2)';
+        msgEl.textContent = `✅ Report aperto: ${fname}`;
       }
+      return;
     } catch(e) {
-      console.warn('[TAO] Filesystem save failed:', e);
+      console.warn('[TAO] PDF Capacitor error:', e.message || e);
       msgEl.style.color = 'var(--warn)';
-      msgEl.textContent = '⚠️ Errore salvataggio. Riprova.';
+      msgEl.textContent = '⚠️ Errore: ' + (e.message || 'impossibile salvare');
+      // Fall through to normal download
     }
-    return;
   }
 
   doc.save(fname);
