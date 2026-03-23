@@ -3366,39 +3366,6 @@ async function generatePDFReport() {
   // Save
   const fname = `TAO-Report-${fromStr}-${toStr}.pdf`;
 
-  if(window.isCapacitor) {
-    try {
-      // Simple approach: open PDF in new window as data URI
-      const pdfDataUri = doc.output('datauristring');
-      const w = window.open();
-      w.document.write(`<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  body{margin:0;background:#525659;font-family:sans-serif}
-  .bar{background:#323639;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
-  .bar span{color:white;font-size:13px}
-  button{background:#238636;color:white;border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer}
-  embed{width:100%;height:calc(100vh - 46px);display:block}
-</style>
-</head>
-<body>
-<div class="bar">
-  <span>📄 ${fname}</span>
-  <button onclick="window.close()">✕ Chiudi</button>
-</div>
-<embed src="${pdfDataUri}" type="application/pdf">
-</body>
-</html>`);
-      w.document.close();
-      msgEl.style.color = 'var(--accent2)';
-      msgEl.textContent = '✅ Report aperto';
-      return;
-    } catch(e) {
-      console.warn('[TAO] PDF open error:', e.message || e);
-    }
-  }
 
   doc.save(fname);
   msgEl.style.color = 'var(--accent2)';
