@@ -739,7 +739,28 @@ body.splash-active header, body.splash-active nav, body.splash-active main {
     </div>
 
     <!-- Taken status -->
-    <div id="dayDetailTakenInfo" style="font-size:12px;color:var(--accent2);margin-bottom:12px;display:none"></div>
+    <div id="dayDetailTakenInfo" style="font-size:12px;color:var(--accent2);margin-bottom:8px;display:none"></div>
+
+    <!-- Edit taken time (shown only when already taken) -->
+    <div id="editTakenTimeRow" style="display:none;margin-bottom:12px">
+      <div class="modal-label" style="margin-bottom:8px">✏️ Modifica orario assunzione</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:0;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px;user-select:none">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <button onclick="adjustEditTime('h',1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:44px;height:32px;font-size:16px;cursor:pointer">▲</button>
+          <div id="etpHour" style="font-family:'DM Mono',monospace;font-size:32px;font-weight:700;color:var(--text);width:56px;text-align:center">17</div>
+          <button onclick="adjustEditTime('h',-1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:44px;height:32px;font-size:16px;cursor:pointer">▼</button>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:32px;font-weight:700;color:var(--muted);padding:0 6px">:</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <button onclick="adjustEditTime('m',5)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:44px;height:32px;font-size:16px;cursor:pointer">▲</button>
+          <div id="etpMin" style="font-family:'DM Mono',monospace;font-size:32px;font-weight:700;color:var(--text);width:56px;text-align:center">30</div>
+          <button onclick="adjustEditTime('m',-5)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:44px;height:32px;font-size:16px;cursor:pointer">▼</button>
+        </div>
+      </div>
+      <button onclick="saveTakenTime()" class="btn-secondary" style="width:100%;margin-top:8px;padding:10px">
+        💾 Salva orario assunzione
+      </button>
+    </div>
 
     <div class="modal-btns" style="flex-direction:column;gap:8px">
       <button id="dayDetailTakenBtn" onclick="toggleTakenFromModal()" class="btn-primary" style="width:100%">○ Segna come preso</button>
@@ -2110,9 +2131,17 @@ function _renderDayDetailModal(dateStr, data) {
   const takenBtn = document.getElementById('dayDetailTakenBtn');
 
   // Explicit check: taken must be truthy (not false/undefined/null)
+  const editTakenRow = document.getElementById('editTakenTimeRow');
+
   if(isTaken === true) {
     takenInfo.style.display = 'block';
     takenInfo.textContent = takenTime ? `✅ Assunto alle ${takenTime}` : '✅ Segnato come preso';
+    // Show edit time row and init with current taken time
+    if(editTakenRow) {
+      editTakenRow.style.display = 'block';
+      const editTime = takenTime || '17:30';
+      initEditTimePicker(editTime);
+    }
     takenBtn.textContent = '○ Rimuovi assunzione';
     takenBtn.style.cssText = 'width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:8px;font-size:14px;cursor:pointer';
   } else {
@@ -2347,6 +2376,58 @@ function initBatteryOptUI() {
     const btn = document.getElementById('batteryOptBtn');
     if(btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
   }
+}
+
+// ===================================================
+// EDIT TAKEN TIME PICKER
+// ===================================================
+function initEditTimePicker(timeStr) {
+  const parts = (timeStr || '17:30').split(':');
+  let h = parseInt(parts[0]) || 17;
+  let m = parseInt(parts[1]) || 30;
+  m = Math.round(m / 5) * 5;
+  if(m >= 60) { m = 0; h = (h + 1) % 24; }
+  const hEl = document.getElementById('etpHour');
+  const mEl = document.getElementById('etpMin');
+  if(hEl) hEl.textContent = String(h).padStart(2,'0');
+  if(mEl) mEl.textContent = String(m).padStart(2,'0');
+}
+
+function adjustEditTime(part, delta) {
+  const hEl = document.getElementById('etpHour');
+  const mEl = document.getElementById('etpMin');
+  if(!hEl || !mEl) return;
+  let h = parseInt(hEl.textContent);
+  let m = parseInt(mEl.textContent);
+  if(part === 'h') {
+    h = (h + delta + 24) % 24;
+  } else {
+    m = m + delta;
+    if(m >= 60) { m = 0; h = (h + 1) % 24; }
+    if(m < 0)   { m = 55; h = (h - 1 + 24) % 24; }
+  }
+  hEl.textContent = String(h).padStart(2,'0');
+  mEl.textContent = String(m).padStart(2,'0');
+}
+
+function saveTakenTime() {
+  const hEl = document.getElementById('etpHour');
+  const mEl = document.getElementById('etpMin');
+  if(!hEl || !mEl || !_dayDetailKey) return;
+  const newTime = `${hEl.textContent}:${mEl.textContent}`;
+  const data = loadData();
+  if(!data.takenTimes) data.takenTimes = {};
+  if(!data.takenEditTimes) data.takenEditTimes = {};
+  data.takenTimes[_dayDetailKey] = newTime;
+  data.takenEditTimes[_dayDetailKey] = Date.now();
+  saveData(data);
+  fbAutoSync();
+  saveBackupToFolder(true);
+  // Update display
+  const takenInfo = document.getElementById('dayDetailTakenInfo');
+  if(takenInfo) takenInfo.textContent = `✅ Assunto alle ${newTime}`;
+  renderTerapiaTab();
+  showAutoBackupToast(`✅ Orario assunzione aggiornato: ${newTime}`);
 }
 
 // ===================================================
@@ -2641,6 +2722,8 @@ function fbStartRealtimeSync() {
       appData = merged;
       calInitialized = false;
       renderCurrentTab();
+      // Always re-render terapia to update progress bar
+      renderTerapiaTab();
       setFbSyncStatus(
         `✅ Aggiornato dal cloud — ${new Date(remoteTime).toLocaleString('it-IT')}`, 'ok'
       );
@@ -3584,6 +3667,8 @@ initSwipe();
 initCapacitor();
 initRingtoneUI();
 initBatteryOptUI();
+// Re-render terapia after short delay to ensure data is loaded
+setTimeout(() => { renderTerapiaTab(); }, 800);
 
 // Hide splash immediately in Capacitor, after 1.2s in browser
 const splashDelay = window.isCapacitor ? 100 : 1200;
